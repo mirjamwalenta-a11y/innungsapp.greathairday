@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Innung Seminare">
+<title>Innung Seminare · Mirjam Walenta</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy:   #1B2A3B;
+    --slate:  #F0F2F5;
+    --white:  #FFFFFF;
+    --copper: #B5622A;
+    --muted:  #6B7684;
+    --border: #D6DAE0;
+    --error:  #C0392B;
+    --green:  #2E7D32;
+    --green-bg: #EEF6EE;
+    --green-border: #A8D5A8;
+  }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--slate); color: var(--navy); min-height: 100vh; }
+  input, textarea, button { font-family: inherit; }
+
+  /* ── LOADING ── */
+  #loadingScreen {
+    position: fixed; inset: 0; background: var(--navy);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; z-index: 9999;
+  }
+  #loadingScreen .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--copper); }
+  #loadingScreen p { color: rgba(255,255,255,0.6); font-size: 13px; }
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.2);
+    border-top-color: var(--copper); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── LOGIN ── */
+  #loginScreen {
+    min-height: 100vh; background: var(--navy);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .login-card {
+    background: var(--white); border-radius: 14px; padding: 40px 32px;
+    width: 100%; max-width: 340px; box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 28px; }
+  .brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--copper); flex-shrink: 0; }
+  .brand-name { font-weight: 800; font-size: 14px; color: var(--navy); }
+  .brand-sub { font-size: 10px; color: var(--muted); font-weight: 500; letter-spacing: 0.04em; }
+
+  /* ── APP SHELL ── */
+  #appScreen { display: none; }
+  .topbar {
+    background: var(--navy); height: 52px; padding: 0 20px;
+    display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 8px; }
+  .topbar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--copper); }
+  .topbar-name { color: var(--white); font-weight: 800; font-size: 13px; }
+  .topbar-sub { color: rgba(255,255,255,0.6); font-size: 10px; font-weight: 500; letter-spacing: 0.05em; }
+  .topbar-logout {
+    background: none; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px;
+    color: var(--white); font-size: 12px; font-weight: 600; padding: 4px 10px; cursor: pointer;
+  }
+  .rollenbar {
+    padding: 5px 20px; font-size: 12px; color: var(--white); font-weight: 500;
+  }
+  .rollenbar.org { background: var(--copper); }
+  .rollenbar.trainer { background: #2C4056; }
+
+  /* ── SYNC STATUS ── */
+  .sync-bar {
+    background: var(--white); border-bottom: 1px solid var(--border);
+    padding: 4px 20px; font-size: 11px; color: var(--muted); text-align: right;
+  }
+
+  /* ── TABS ── */
+  .tabnav {
+    display: flex; border-bottom: 2px solid var(--border);
+    background: var(--white); padding-left: 16px; overflow-x: auto;
+  }
+  .tabnav button {
+    padding: 11px 16px; font-size: 13px; background: none; border: none;
+    border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer;
+    white-space: nowrap; color: var(--muted); font-weight: 400;
+  }
+  .tabnav button.aktiv { color: var(--navy); font-weight: 700; border-bottom-color: var(--copper); }
+
+  /* ── CONTENT ── */
+  .content { max-width: 660px; margin: 0 auto; padding: 24px 16px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 9px 20px; font-size: 14px; font-weight: 600; border-radius: 6px;
+    cursor: pointer; border: none; transition: opacity 0.15s;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--navy); color: var(--white); }
+  .btn-secondary { background: var(--white); color: var(--navy); border: 1px solid var(--border) !important; border: none; }
+  .btn-small { padding: 5px 12px; font-size: 12px; }
+  .back-btn {
+    background: none; border: none; cursor: pointer; font-size: 22px;
+    color: var(--muted); padding: 0; line-height: 1; flex-shrink: 0;
+  }
+
+  /* ── FORM ELEMENTS ── */
+  .lbl { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+  .inp {
+    width: 100%; padding: 9px 12px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 6px; outline: none;
+    color: var(--navy); background: var(--white);
+  }
+  .inp:focus { border-color: var(--navy); }
+  textarea.inp { resize: vertical; font-family: inherit; }
+  .field-err { font-size: 12px; color: var(--error); margin-top: 3px; }
+  .form-card { background: var(--white); border-radius: 10px; border: 1px solid var(--border); padding: 20px; }
+  .form-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── CARDS ── */
+  .card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card-header { background: var(--navy); padding: 20px 24px; color: var(--white); }
+  .card-header-label { font-size: 11px; opacity: 0.6; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .card-header-title { font-size: 18px; font-weight: 800; }
+  .card-body { padding: 16px 24px; }
+  .detail-row { display: flex; gap: 16px; margin-bottom: 12px; }
+  .detail-label { min-width: 120px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+  .detail-value { font-size: 14px; }
+
+  /* ── LISTEN-ITEMS ── */
+  .list-item {
+    background: var(--white); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; cursor: pointer; display: flex; gap: 16px; align-items: flex-start;
+    transition: border-color 0.15s;
+  }
+  .list-item:hover { border-color: var(--navy); }
+  .date-badge {
+    min-width: 48px; text-align: center; background: var(--navy); border-radius: 8px;
+    padding: 8px 6px; color: var(--white); flex-shrink: 0;
+  }
+  .date-day { font-size: 18px; font-weight: 800; line-height: 1; }
+  .date-mon { font-size: 10px; margin-top: 2px; opacity: 0.75; }
+  .list-arrow { color: var(--border); font-size: 18px; align-self: center; }
+
+  /* ── STATUS BADGE ── */
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+  .badge-vergeben { background: var(--navy); color: var(--white); }
+  .badge-interesse { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .badge-offen { background: var(--slate); color: var(--muted); border: 1px solid var(--border); }
+
+  /* ── AVATAR ── */
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--navy);
+    color: var(--white); font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* ── INTERESSE-BOX ── */
+  .interesse-box { border-radius: 10px; padding: 16px 20px; border: 1px solid var(--border); }
+
+  /* ── LEITLINIEN ── */
+  .ll-item {
+    background: var(--white); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; display: flex; align-items: flex-start; gap: 12px;
+  }
+  .ll-nr { font-size: 13px; font-weight: 800; color: var(--copper); min-width: 24px; padding-top: 1px; }
+  .ll-sort-btns { display: flex; flex-direction: column; gap: 2px; }
+  .ll-sort-btn {
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    cursor: pointer; font-size: 11px; padding: 2px 6px; color: var(--muted);
+  }
+  .ll-sort-btn:hover { background: var(--slate); }
+
+  /* ── TRAINER ── */
+  .trainer-item {
+    background: var(--white); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+    transition: border-color 0.15s;
+  }
+  .trainer-item:hover { border-color: var(--navy); }
+
+  /* ── SECTION HEADER ── */
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .section-title { font-size: 20px; font-weight: 700; }
+
+  /* ── EMPTY STATE ── */
+  .empty { text-align: center; padding: 48px 0; color: var(--muted); font-size: 14px; }
+
+  /* ── ERROR TOAST ── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--error); color: var(--white); padding: 10px 20px;
+    border-radius: 8px; font-size: 13px; font-weight: 600;
+    display: none; z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+
+  .list-stack { display: flex; flex-direction: column; gap: 10px; }
+  .list-stack-sm { display: flex; flex-direction: column; gap: 8px; }
+  .row-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .ml-auto { margin-left: auto; }
+  .mt-4 { margin-top: 16px; }
+  .mb-3 { margin-bottom: 12px; }
+  .mb-4 { margin-bottom: 16px; }
+  .interesse-list-header {
+    padding: 10px 20px; border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .count-badge {
+    border-radius: 10px; padding: 1px 8px; font-size: 11px; font-weight: 700; color: var(--white);
+  }
+  .interesse-list-item {
+    padding: 12px 20px; display: flex; align-items: center; gap: 10px;
+  }
+  .vergeben-footer {
+    padding: 10px 20px; background: var(--green-bg); border-top: 1px solid var(--green-border);
+    font-size: 12px; color: var(--green); font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+  <div class="brand" style="justify-content:center">
+    <div class="dot"></div>
+    <div><div style="color:#fff;font-weight:800;font-size:14px">Mirjam Walenta</div>
+    <div style="color:rgba(255,255,255,0.5);font-size:10px;letter-spacing:0.05em">A great hair day · Innung Seminare</div></div>
+  </div>
+  <div class="spinner"></div>
+  <p>Wird geladen…</p>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" style="display:none">
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div><div class="brand-name">Mirjam Walenta</div>
+      <div class="brand-sub">A great hair day · Innung Seminare</div></div>
+    </div>
+    <div style="font-size:20px;font-weight:700;margin-bottom:4px">Anmelden</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Kennung und PIN eingeben.</div>
+    <div class="mb-4">
+      <label class="lbl">Kennung <span style="color:var(--error)">*</span></label>
+      <input id="loginKennung" class="inp" placeholder="z. B. mhuber" autocapitalize="none" autocorrect="off">
+    </div>
+    <div class="mb-4">
+      <label class="lbl">PIN <span style="color:var(--error)">*</span></label>
+      <input id="loginPin" class="inp" type="password" placeholder="••••" maxlength="4" inputmode="numeric">
+    </div>
+    <div id="loginFehler" style="display:none;font-size:13px;color:var(--error);margin-bottom:14px;padding:9px 12px;background:#FEF2F2;border-radius:6px">
+      Kennung oder PIN ungültig.
+    </div>
+    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%">Anmelden</button>
+    <div style="margin-top:18px;font-size:11px;color:var(--muted);line-height:1.6">
+      Org: org / 0000 &nbsp;·&nbsp; mhuber / 1234 &nbsp;·&nbsp; tberger / 5678
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-dot"></div>
+      <div><div class="topbar-name">Mirjam Walenta</div>
+      <div class="topbar-sub">A great hair day · Innung Seminare</div></div>
+    </div>
+    <button class="topbar-logout" onclick="doLogout()">Abmelden</button>
+  </div>
+  <div id="rollenbar" class="rollenbar"></div>
+  <div class="sync-bar">
+    <span id="syncStatus">⏳ Lädt…</span>
+  </div>
+  <div class="tabnav" id="tabnav">
+    <button onclick="showTab('seminare')" id="tab-seminare">Seminartermine</button>
+    <button onclick="showTab('leitlinien')" id="tab-leitlinien">Leitlinien</button>
+  </div>
+  <div class="content" id="mainContent"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  SUPABASE CONFIG
+// ═══════════════════════════════════════
+const SUPA_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+
+const MONATE = ['JAN','FEB','MÄR','APR','MAI','JUN','JUL','AUG','SEP','OKT','NOV','DEZ'];
+
+// ═══════════════════════════════════════
+//  SUPABASE HELPERS
+// ═══════════════════════════════════════
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
+    headers: {
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${SUPA_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...opts.headers
+    },
+    ...opts
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+async function sbGet(table, query = '') {
+  return sbFetch(`${table}?${query}`);
+}
+async function sbPost(table, body) {
+  return sbFetch(table, { method: 'POST', body: JSON.stringify(body) });
+}
+async function sbPatch(table, query, body) {
+  return sbFetch(`${table}?${query}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+async function sbDelete(table, query) {
+  return sbFetch(`${table}?${query}`, { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
+}
+
+// MD5 für PIN-Vergleich (gleiche Logik wie in Supabase)
+function md5(str) {
+  // Einfache md5-Implementierung
+  function safeAdd(x, y) { const lsw = (x & 0xFFFF) + (y & 0xFFFF); return (((x >> 16) + (y >> 16) + (lsw >> 16)) << 16) | (lsw & 0xFFFF); }
+  function bitRotateLeft(num, cnt) { return (num << cnt) | (num >>> (32 - cnt)); }
+  function md5cmn(q, a, b, x, s, t) { return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b); }
+  function md5ff(a, b, c, d, x, s, t) { return md5cmn((b & c) | (~b & d), a, b, x, s, t); }
+  function md5gg(a, b, c, d, x, s, t) { return md5cmn((b & d) | (c & ~d), a, b, x, s, t); }
+  function md5hh(a, b, c, d, x, s, t) { return md5cmn(b ^ c ^ d, a, b, x, s, t); }
+  function md5ii(a, b, c, d, x, s, t) { return md5cmn(c ^ (b | ~d), a, b, x, s, t); }
+  const bytes = new TextEncoder().encode(str);
+  const len = bytes.length;
+  const words = [];
+  for (let i = 0; i < len; i++) words[i >> 2] |= bytes[i] << ((i % 4) * 8);
+  words[len >> 2] |= 0x80 << ((len % 4) * 8);
+  words[(((len + 8) >> 6) << 4) + 14] = len * 8;
+  let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878;
+  for (let i = 0; i < words.length; i += 16) {
+    const [A, B, C, D] = [a, b, c, d];
+    a = md5ff(a,b,c,d,words[i+0],7,-680876936); d = md5ff(d,a,b,c,words[i+1],12,-389564586);
+    c = md5ff(c,d,a,b,words[i+2],17,606105819); b = md5ff(b,c,d,a,words[i+3],22,-1044525330);
+    a = md5ff(a,b,c,d,words[i+4],7,-176418897); d = md5ff(d,a,b,c,words[i+5],12,1200080426);
+    c = md5ff(c,d,a,b,words[i+6],17,-1473231341); b = md5ff(b,c,d,a,words[i+7],22,-45705983);
+    a = md5ff(a,b,c,d,words[i+8],7,1770035416); d = md5ff(d,a,b,c,words[i+9],12,-1958414417);
+    c = md5ff(c,d,a,b,words[i+10],17,-42063); b = md5ff(b,c,d,a,words[i+11],22,-1990404162);
+    a = md5ff(a,b,c,d,words[i+12],7,1804603682); d = md5ff(d,a,b,c,words[i+13],12,-40341101);
+    c = md5ff(c,d,a,b,words[i+14],17,-1502002290); b = md5ff(b,c,d,a,words[i+15],22,1236535329);
+    a = md5gg(a,b,c,d,words[i+1],5,-165796510); d = md5gg(d,a,b,c,words[i+6],9,-1069501632);
+    c = md5gg(c,d,a,b,words[i+11],14,643717713); b = md5gg(b,c,d,a,words[i+0],20,-373897302);
+    a = md5gg(a,b,c,d,words[i+5],5,-701558691); d = md5gg(d,a,b,c,words[i+10],9,38016083);
+    c = md5gg(c,d,a,b,words[i+15],14,-660478335); b = md5gg(b,c,d,a,words[i+4],20,-405537848);
+    a = md5gg(a,b,c,d,words[i+9],5,568446438); d = md5gg(d,a,b,c,words[i+14],9,-1019803690);
+    c = md5gg(c,d,a,b,words[i+3],14,-187363961); b = md5gg(b,c,d,a,words[i+8],20,1163531501);
+    a = md5gg(a,b,c,d,words[i+13],5,-1444681467); d = md5gg(d,a,b,c,words[i+2],9,-51403784);
+    c = md5gg(c,d,a,b,words[i+7],14,1735328473); b = md5gg(b,c,d,a,words[i+12],20,-1926607734);
+    a = md5hh(a,b,c,d,words[i+5],4,-378558); d = md5hh(d,a,b,c,words[i+8],11,-2022574463);
+    c = md5hh(c,d,a,b,words[i+11],16,1839030562); b = md5hh(b,c,d,a,words[i+14],23,-35309556);
+    a = md5hh(a,b,c,d,words[i+1],4,-1530992060); d = md5hh(d,a,b,c,words[i+4],11,1272893353);
+    c = md5hh(c,d,a,b,words[i+7],16,-155497632); b = md5hh(b,c,d,a,words[i+10],23,-1094730640);
+    a = md5hh(a,b,c,d,words[i+13],4,681279174); d = md5hh(d,a,b,c,words[i+0],11,-358537222);
+    c = md5hh(c,d,a,b,words[i+3],16,-722521979); b = md5hh(b,c,d,a,words[i+6],23,76029189);
+    a = md5hh(a,b,c,d,words[i+9],4,-640364487); d = md5hh(d,a,b,c,words[i+12],11,-421815835);
+    c = md5hh(c,d,a,b,words[i+15],16,530742520); b = md5hh(b,c,d,a,words[i+2],23,-995338651);
+    a = md5ii(a,b,c,d,words[i+0],6,-198630844); d = md5ii(d,a,b,c,words[i+7],10,1126891415);
+    c = md5ii(c,d,a,b,words[i+14],15,-1416354905); b = md5ii(b,c,d,a,words[i+5],21,-57434055);
+    a = md5ii(a,b,c,d,words[i+12],6,1700485571); d = md5ii(d,a,b,c,words[i+3],10,-1894986606);
+    c = md5ii(c,d,a,b,words[i+10],15,-1051523); b = md5ii(b,c,d,a,words[i+1],21,-2054922799);
+    a = md5ii(a,b,c,d,words[i+8],6,1873313359); d = md5ii(d,a,b,c,words[i+15],10,-30611744);
+    c = md5ii(c,d,a,b,words[i+6],15,-1560198380); b = md5ii(b,c,d,a,words[i+13],21,1309151649);
+    a = md5ii(a,b,c,d,words[i+4],6,-145523070); d = md5ii(d,a,b,c,words[i+11],10,-1120210379);
+    c = md5ii(c,d,a,b,words[i+2],15,718787259); b = md5ii(b,c,d,a,words[i+9],21,-343485551);
+    a = safeAdd(a, A); b = safeAdd(b, B); c = safeAdd(c, C); d = safeAdd(d, D);
+  }
+  return [a,b,c,d].map(n => ('00000000' + ((n < 0 ? n + 0x100000000 : n).toString(16))).slice(-8)).join('');
+}
+
+// ═══════════════════════════════════════
+//  APP STATE
+// ═══════════════════════════════════════
+let session = null; // { rolle, id, name }
+let seminare = [];
+let trainerinnen = [];
+let leitlinien = [];
+let activeTab = 'seminare';
+// Navigation states
+let semScreen = 'liste'; let selSeminar = null;
+let llScreen = 'liste';  let selLL = null;
+let trScreen = 'liste';  let selTr = null;
+
+// ═══════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  // Session aus localStorage wiederherstellen
+  const saved = localStorage.getItem('innungsapp_session');
+  if (saved) {
+    try {
+      session = JSON.parse(saved);
+      await loadAllData();
+      showApp();
+      return;
+    } catch(e) { localStorage.removeItem('innungsapp_session'); }
+  }
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+
+  // Enter-Taste im Login
+  document.getElementById('loginPin').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('loginKennung').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('loginPin').focus();
+  });
+});
+
+// ═══════════════════════════════════════
+//  LOGIN / LOGOUT
+// ═══════════════════════════════════════
+async function doLogin() {
+  const kennung = document.getElementById('loginKennung').value.trim().toLowerCase();
+  const pin = document.getElementById('loginPin').value;
+  document.getElementById('loginFehler').style.display = 'none';
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('loginBtn').textContent = 'Wird geprüft…';
+
+  try {
+    const pinHash = md5(pin);
+    // Trainer:in suchen
+    const rows = await sbGet('innungs_trainerinnen',
+      `kennung=eq.${encodeURIComponent(kennung)}&pin_hash=eq.${encodeURIComponent(pinHash)}&aktiv=eq.true`);
+
+    if (rows.length === 0) {
+      document.getElementById('loginFehler').style.display = 'block';
+      document.getElementById('loginBtn').disabled = false;
+      document.getElementById('loginBtn').textContent = 'Anmelden';
+      return;
+    }
+
+    const t = rows[0];
+    const rolle = t.kennung === 'org' ? 'organisatorin' : 'trainerin';
+    session = { rolle, id: t.id, name: t.name, kennung: t.kennung };
+    localStorage.setItem('innungsapp_session', JSON.stringify(session));
+
+    await loadAllData();
+    showApp();
+  } catch(e) {
+    showToast('Verbindungsfehler: ' + e.message);
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginBtn').textContent = 'Anmelden';
+  }
+}
+
+function doLogout() {
+  session = null;
+  localStorage.removeItem('innungsapp_session');
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginKennung').value = '';
+  document.getElementById('loginPin').value = '';
+}
+
+// ═══════════════════════════════════════
+//  DATEN LADEN
+// ═══════════════════════════════════════
+async function loadAllData() {
+  setSyncStatus('syncing');
+  try {
+    const [sem, tr, ll, int] = await Promise.all([
+      sbGet('innungs_seminare', 'order=datum.asc,uhrzeit.asc'),
+      sbGet('innungs_trainerinnen', 'order=name.asc'),
+      sbGet('innungs_leitlinien', 'order=reihenfolge.asc'),
+      sbGet('innungs_interessierte', '')
+    ]);
+
+    trainerinnen = tr;
+    leitlinien = ll;
+
+    // Interessierte in Seminare einbauen
+    seminare = sem.map(s => ({
+      ...s,
+      interessierte: int.filter(i => i.seminar_id === s.id).map(i => i.trainerin_id)
+    }));
+
+    setSyncStatus('synced');
+  } catch(e) {
+    setSyncStatus('error');
+    showToast('Ladefehler: ' + e.message);
+  }
+}
+
+function setSyncStatus(s) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = {
+    syncing: '🔄 Synchronisiert…',
+    synced:  '☁️ Synchronisiert',
+    error:   '⚠️ Sync-Fehler'
+  };
+  const colors = { syncing: 'var(--copper)', synced: 'var(--green)', error: 'var(--error)' };
+  el.textContent = map[s] || s;
+  el.style.color = colors[s] || 'var(--muted)';
+}
+
+// ═══════════════════════════════════════
+//  APP ANZEIGEN
+// ═══════════════════════════════════════
+function showApp() {
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+
+  const rb = document.getElementById('rollenbar');
+  if (session.rolle === 'organisatorin') {
+    rb.textContent = 'Angemeldet als: Organisatorin';
+    rb.className = 'rollenbar org';
+  } else {
+    rb.textContent = `Angemeldet als: ${session.name}`;
+    rb.className = 'rollenbar trainer';
+  }
+
+  // Verwaltungs-Tab nur für Organisatorin
+  const tabnav = document.getElementById('tabnav');
+  if (session.rolle === 'organisatorin' && !document.getElementById('tab-verwaltung')) {
+    const btn = document.createElement('button');
+    btn.id = 'tab-verwaltung';
+    btn.textContent = 'Trainer:innen';
+    btn.onclick = () => showTab('verwaltung');
+    tabnav.appendChild(btn);
+  }
+
+  semScreen = 'liste'; llScreen = 'liste'; trScreen = 'liste';
+  selSeminar = null; selLL = null; selTr = null;
+  showTab('seminare');
+}
+
+// ═══════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════
+function showTab(tab) {
+  activeTab = tab;
+  ['seminare','leitlinien','verwaltung'].forEach(t => {
+    const el = document.getElementById(`tab-${t}`);
+    if (el) el.className = t === tab ? 'aktiv' : '';
+  });
+  render();
+}
+
+// ═══════════════════════════════════════
+//  RENDER ROUTER
+// ═══════════════════════════════════════
+function render() {
+  const c = document.getElementById('mainContent');
+  if (activeTab === 'seminare') {
+    if (semScreen === 'liste') c.innerHTML = renderSeminarListe();
+    else if (semScreen === 'detail') c.innerHTML = renderSeminarDetail();
+    else if (semScreen === 'neu' || semScreen === 'bearbeiten') c.innerHTML = renderSeminarFormular();
+  } else if (activeTab === 'leitlinien') {
+    if (llScreen === 'liste') c.innerHTML = renderLLListe();
+    else if (llScreen === 'detail') c.innerHTML = renderLLDetail();
+    else if (llScreen === 'neu' || llScreen === 'bearbeiten') c.innerHTML = renderLLFormular();
+  } else if (activeTab === 'verwaltung') {
+    if (trScreen === 'liste') c.innerHTML = renderTrListe();
+    else if (trScreen === 'detail') c.innerHTML = renderTrDetail();
+    else if (trScreen === 'neu' || trScreen === 'bearbeiten') c.innerHTML = renderTrFormular();
+  }
+}
+
+// ═══════════════════════════════════════
+//  HILFSFUNKTIONEN
+// ═══════════════════════════════════════
+function tName(id) {
+  return trainerinnen.find(t => t.id === id)?.name ?? id;
+}
+function fmtDatum(iso) {
+  const [y,m,d] = iso.split('-'); return `${d}.${m}.${y}`;
+}
+function initials(name) {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase();
+}
+function statusBadge(s) {
+  if (s.bestaetigte_person_id) return `<span class="badge badge-vergeben">Vergeben</span>`;
+  if (s.interessierte.length > 0) return `<span class="badge badge-interesse">Interesse vorhanden</span>`;
+  return `<span class="badge badge-offen">Offen</span>`;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3500);
+}
+
+// ═══════════════════════════════════════
+//  SEMINARE – LISTE
+// ═══════════════════════════════════════
+function renderSeminarListe() {
+  const addBtn = session.rolle === 'organisatorin'
+    ? `<button class="btn btn-primary" onclick="semNeu()">+ Termin anlegen</button>` : '';
+  if (seminare.length === 0) {
+    return `<div class="section-header"><h2 class="section-title">Seminartermine</h2>${addBtn}</div>
+            <div class="empty">Noch keine Termine eingetragen.</div>`;
+  }
+  const items = seminare.map(s => {
+    const day = s.datum.split('-')[2];
+    const mon = MONATE[parseInt(s.datum.split('-')[1]) - 1];
+    return `<div class="list-item" onclick="semSelect(${s.id})">
+      <div class="date-badge"><div class="date-day">${day}</div><div class="date-mon">${mon}</div></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-weight:700;font-size:14px">${escHtml(s.titel)}</span>
+          ${statusBadge(s)}
+        </div>
+        <div style="font-size:12px;color:var(--muted)">${s.uhrzeit.slice(0,5)} Uhr · ${escHtml(s.ort)}</div>
+      </div>
+      <div class="list-arrow">›</div>
+    </div>`;
+  }).join('');
+  return `<div class="section-header"><h2 class="section-title">Seminartermine</h2>${addBtn}</div>
+          <div class="list-stack">${items}</div>`;
+}
+
+function semSelect(id) {
+  selSeminar = seminare.find(s => s.id === id);
+  semScreen = 'detail'; render();
+}
+function semNeu() { selSeminar = null; semScreen = 'neu'; render(); }
+
+// ═══════════════════════════════════════
+//  SEMINARE – DETAIL
+// ═══════════════════════════════════════
+function renderSeminarDetail() {
+  if (!selSeminar) { semScreen = 'liste'; return renderSeminarListe(); }
+  const s = selSeminar;
+  const vergeben = !!s.bestaetigte_person_id;
+  const hatInteresse = s.interessierte.includes(session.id);
+  const ichBestaetigt = s.bestaetigte_person_id === session.id;
+
+  const editBtn = session.rolle === 'organisatorin'
+    ? `<button class="btn btn-secondary ml-auto" onclick="semBearbeiten()">Bearbeiten</button>` : '';
+
+  let interesseBox = '';
+  if (session.rolle === 'trainerin') {
+    if (vergeben && ichBestaetigt) {
+      interesseBox = `<div class="interesse-box" style="background:var(--green-bg);border-color:var(--green-border)">
+        <div style="font-weight:700;color:var(--green);font-size:14px">✓ Du bist für diesen Kurs bestätigt.</div></div>`;
+    } else if (vergeben) {
+      interesseBox = `<div class="interesse-box"><div style="color:var(--muted);font-size:14px">Vergeben.</div></div>`;
+    } else if (hatInteresse) {
+      interesseBox = `<div class="interesse-box" style="background:var(--green-bg);border-color:var(--green-border)">
+        <div style="font-weight:700;color:var(--green);font-size:14px;margin-bottom:12px">✓ Du hast Interesse gemeldet.</div>
+        <button class="btn btn-secondary" onclick="toggleInteresse('zurueckziehen')">Interesse zurückziehen</button></div>`;
+    } else {
+      interesseBox = `<div class="interesse-box">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Du hast noch kein Interesse gemeldet.</div>
+        <button class="btn btn-primary" onclick="toggleInteresse('melden')">Interesse melden</button></div>`;
+    }
+  }
+
+  let orgBox = '';
+  if (session.rolle === 'organisatorin') {
+    const countColor = s.interessierte.length > 0 ? 'var(--navy)' : 'var(--border)';
+    const rows = s.interessierte.length === 0
+      ? `<div style="padding:14px 20px;font-size:13px;color:var(--muted)">Noch keine Meldung.</div>`
+      : s.interessierte.map((tid, i) => {
+          const name = tName(tid);
+          const best = s.bestaetigte_person_id === tid;
+          const border = i < s.interessierte.length - 1 ? 'border-bottom:1px solid var(--border)' : '';
+          const action = best
+            ? `<span style="font-size:12px;font-weight:700;color:var(--green)">✓ Bestätigt</span>`
+            : !vergeben
+              ? `<button class="btn btn-primary btn-small" onclick="bestaetigen('${tid}')">Bestätigen</button>`
+              : '';
+          const avBg = best ? 'var(--green)' : 'var(--navy)';
+          return `<div class="interesse-list-item" style="${border}">
+            <div class="avatar" style="background:${avBg}">${initials(name)}</div>
+            <span style="flex:1;font-size:14px">${escHtml(name)}</span>
+            ${action}
+          </div>`;
+        }).join('');
+    const vergebenFooter = vergeben
+      ? `<div class="vergeben-footer">Vergeben an: ${escHtml(tName(s.bestaetigte_person_id))}</div>` : '';
+    orgBox = `<div class="card mt-4">
+      <div class="interesse-list-header">
+        <span>Interesse gemeldet</span>
+        <span class="count-badge" style="background:${countColor}">${s.interessierte.length}</span>
+      </div>
+      ${rows}${vergebenFooter}</div>`;
+  }
+
+  const opt = (l, v) => v ? `<div class="detail-row"><div class="detail-label">${l}</div><div class="detail-value">${escHtml(v)}</div></div>` : '';
+
+  return `<div class="row-header">
+    <button class="back-btn" onclick="semZurueck()">‹</button>
+    <h2 style="font-size:20px;font-weight:700">Seminardetail</h2>
+    ${editBtn}
+  </div>
+  <div class="card mb-4">
+    <div class="card-header">
+      <div class="card-header-label">Seminar</div>
+      <div class="card-header-title">${escHtml(s.titel)}</div>
+    </div>
+    <div class="card-body">
+      ${opt('Datum', fmtDatum(s.datum))}
+      ${opt('Uhrzeit', s.uhrzeit.slice(0,5) + ' Uhr')}
+      ${opt('Ort', s.ort)}
+      ${opt('Zielgruppe', s.zielgruppe_thema)}
+      ${opt('Besonderheiten', s.besonderheiten)}
+    </div>
+  </div>
+  ${interesseBox}${orgBox}`;
+}
+
+function semZurueck() { semScreen = 'liste'; selSeminar = null; render(); }
+function semBearbeiten() { semScreen = 'bearbeiten'; render(); }
+
+async function toggleInteresse(aktion) {
+  const sid = selSeminar.id;
+  const tid = session.id;
+  try {
+    if (aktion === 'melden') {
+      await sbPost('innungs_interessierte', { seminar_id: sid, trainerin_id: tid });
+      selSeminar.interessierte.push(tid);
+      seminare = seminare.map(s => s.id === sid ? { ...s, interessierte: [...s.interessierte, tid] } : s);
+    } else {
+      await sbDelete('innungs_interessierte',
+        `seminar_id=eq.${sid}&trainerin_id=eq.${encodeURIComponent(tid)}`);
+      selSeminar.interessierte = selSeminar.interessierte.filter(x => x !== tid);
+      seminare = seminare.map(s => s.id === sid ? { ...s, interessierte: s.interessierte.filter(x => x !== tid) } : s);
+    }
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+async function bestaetigen(tid) {
+  const sid = selSeminar.id;
+  try {
+    await sbPatch('innungs_seminare', `id=eq.${sid}`, { bestaetigte_person_id: tid });
+    selSeminar.bestaetigte_person_id = tid;
+    seminare = seminare.map(s => s.id === sid ? { ...s, bestaetigte_person_id: tid } : s);
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════
+//  SEMINARE – FORMULAR
+// ═══════════════════════════════════════
+function renderSeminarFormular() {
+  const istNeu = semScreen === 'neu';
+  const s = istNeu ? {} : selSeminar;
+  return `<div class="row-header">
+    <button class="back-btn" onclick="${istNeu ? "semZurueck()" : "semScreen='detail';render()"}">‹</button>
+    <h2 style="font-size:20px;font-weight:700">${istNeu ? 'Termin anlegen' : 'Termin bearbeiten'}</h2>
+  </div>
+  <div class="form-card">
+    <div class="mb-4"><label class="lbl">Titel <span style="color:var(--error)">*</span></label>
+      <input class="inp" id="fTitel" value="${escAttr(s.titel || '')}" placeholder="Titel des Seminars"></div>
+    <div class="grid-2 mb-4">
+      <div><label class="lbl">Datum <span style="color:var(--error)">*</span></label>
+        <input class="inp" type="date" id="fDatum" value="${escAttr(s.datum || '')}"></div>
+      <div><label class="lbl">Uhrzeit <span style="color:var(--error)">*</span></label>
+        <input class="inp" type="time" id="fUhrzeit" value="${escAttr(s.uhrzeit ? s.uhrzeit.slice(0,5) : '')}"></div>
+    </div>
+    <div class="mb-4"><label class="lbl">Ort <span style="color:var(--error)">*</span></label>
+      <input class="inp" id="fOrt" value="${escAttr(s.ort || '')}" placeholder="Adresse oder Bezeichnung"></div>
+    <div class="mb-4"><label class="lbl">Zielgruppe / Thema</label>
+      <input class="inp" id="fZiel" value="${escAttr(s.zielgruppe_thema || '')}" placeholder="Optional"></div>
+    <div><label class="lbl">Besonderheiten</label>
+      <textarea class="inp" id="fBes" rows="3">${escHtml(s.besonderheiten || '')}</textarea></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-secondary" onclick="${istNeu ? "semZurueck()" : "semScreen='detail';render()"}">Abbrechen</button>
+    <button class="btn btn-primary" onclick="semSpeichern(${istNeu})">Speichern</button>
+  </div>`;
+}
+
+async function semSpeichern(istNeu) {
+  const titel = document.getElementById('fTitel').value.trim();
+  const datum = document.getElementById('fDatum').value;
+  const uhrzeit = document.getElementById('fUhrzeit').value;
+  const ort = document.getElementById('fOrt').value.trim();
+  const ziel = document.getElementById('fZiel').value.trim();
+  const bes = document.getElementById('fBes').value.trim();
+  if (!titel || !datum || !uhrzeit || !ort) { showToast('Bitte alle Pflichtfelder ausfüllen.'); return; }
+  const body = { titel, datum, uhrzeit, ort, zielgruppe_thema: ziel, besonderheiten: bes };
+  try {
+    if (istNeu) {
+      const rows = await sbPost('innungs_seminare', body);
+      const neu = { ...rows[0], interessierte: [] };
+      seminare = [...seminare, neu].sort((a, b) => a.datum.localeCompare(b.datum) || a.uhrzeit.localeCompare(b.uhrzeit));
+      semScreen = 'liste'; selSeminar = null;
+    } else {
+      await sbPatch('innungs_seminare', `id=eq.${selSeminar.id}`, body);
+      selSeminar = { ...selSeminar, ...body };
+      seminare = seminare.map(s => s.id === selSeminar.id ? selSeminar : s);
+      semScreen = 'detail';
+    }
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════
+//  LEITLINIEN – LISTE
+// ═══════════════════════════════════════
+function renderLLListe() {
+  const addBtn = session.rolle === 'organisatorin'
+    ? `<button class="btn btn-primary" onclick="llNeu()">+ Leitlinie anlegen</button>` : '';
+  if (leitlinien.length === 0) {
+    return `<div class="section-header"><h2 class="section-title">Leitlinien</h2>${addBtn}</div>
+            <div class="empty">Noch keine Leitlinien eingetragen.</div>`;
+  }
+  const sorted = [...leitlinien].sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const items = sorted.map((l, i) => {
+    const sortBtns = session.rolle === 'organisatorin' ? `
+      <div class="ll-sort-btns">
+        ${i > 0 ? `<button class="ll-sort-btn" onclick="event.stopPropagation();llReihenfolge('${l.id}','hoch')">↑</button>` : ''}
+        ${i < sorted.length - 1 ? `<button class="ll-sort-btn" onclick="event.stopPropagation();llReihenfolge('${l.id}','runter')">↓</button>` : ''}
+      </div>` : '';
+    return `<div class="ll-item" onclick="llSelect('${l.id}')" style="cursor:pointer">
+      <div class="ll-nr">${l.reihenfolge}.</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;margin-bottom:2px">${escHtml(l.titel)}</div>
+        <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.inhalt)}</div>
+      </div>
+      ${sortBtns}
+      <div class="list-arrow" style="font-size:18px;color:var(--border);align-self:center">›</div>
+    </div>`;
+  }).join('');
+  return `<div class="section-header"><h2 class="section-title">Leitlinien</h2>${addBtn}</div>
+          <div class="list-stack-sm">${items}</div>`;
+}
+
+function llSelect(id) { selLL = leitlinien.find(l => l.id === id); llScreen = 'detail'; render(); }
+function llNeu() { selLL = null; llScreen = 'neu'; render(); }
+
+async function llReihenfolge(id, dir) {
+  const sorted = [...leitlinien].sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const i = sorted.findIndex(l => l.id === id);
+  const j = dir === 'hoch' ? i - 1 : i + 1;
+  if (j < 0 || j >= sorted.length) return;
+  const r1 = sorted[i].reihenfolge, r2 = sorted[j].reihenfolge;
+  try {
+    await sbPatch('innungs_leitlinien', `id=eq.${sorted[i].id}`, { reihenfolge: r2 });
+    await sbPatch('innungs_leitlinien', `id=eq.${sorted[j].id}`, { reihenfolge: r1 });
+    leitlinien = leitlinien.map(l =>
+      l.id === sorted[i].id ? { ...l, reihenfolge: r2 } :
+      l.id === sorted[j].id ? { ...l, reihenfolge: r1 } : l
+    );
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════
+//  LEITLINIEN – DETAIL
+// ═══════════════════════════════════════
+function renderLLDetail() {
+  if (!selLL) { llScreen = 'liste'; return renderLLListe(); }
+  const l = selLL;
+  const editBtn = session.rolle === 'organisatorin'
+    ? `<button class="btn btn-secondary ml-auto" onclick="llBearbeiten()">Bearbeiten</button>` : '';
+  return `<div class="row-header">
+    <button class="back-btn" onclick="llZurueck()">‹</button>
+    <h2 style="font-size:20px;font-weight:700">Leitlinie</h2>
+    ${editBtn}
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-label">Leitlinie ${l.reihenfolge}</div>
+      <div class="card-header-title">${escHtml(l.titel)}</div>
+    </div>
+    <div style="padding:24px;font-size:15px;color:var(--navy);line-height:1.7;white-space:pre-wrap">${escHtml(l.inhalt)}</div>
+  </div>`;
+}
+
+function llZurueck() { llScreen = 'liste'; selLL = null; render(); }
+function llBearbeiten() { llScreen = 'bearbeiten'; render(); }
+
+// ═══════════════════════════════════════
+//  LEITLINIEN – FORMULAR
+// ═══════════════════════════════════════
+function renderLLFormular() {
+  const istNeu = llScreen === 'neu';
+  const l = istNeu ? {} : selLL;
+  return `<div class="row-header">
+    <button class="back-btn" onclick="${istNeu ? "llZurueck()" : "llScreen='detail';render()"}">‹</button>
+    <h2 style="font-size:20px;font-weight:700">${istNeu ? 'Leitlinie anlegen' : 'Bearbeiten'}</h2>
+  </div>
+  <div class="form-card">
+    <div class="mb-4"><label class="lbl">Titel <span style="color:var(--error)">*</span></label>
+      <input class="inp" id="llTitel" value="${escAttr(l.titel || '')}" placeholder="Titel der Leitlinie"></div>
+    <div><label class="lbl">Inhalt <span style="color:var(--error)">*</span></label>
+      <textarea class="inp" id="llInhalt" rows="6">${escHtml(l.inhalt || '')}</textarea></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-secondary" onclick="${istNeu ? "llZurueck()" : "llScreen='detail';render()"}">Abbrechen</button>
+    <button class="btn btn-primary" onclick="llSpeichern(${istNeu})">Speichern</button>
+  </div>`;
+}
+
+async function llSpeichern(istNeu) {
+  const titel = document.getElementById('llTitel').value.trim();
+  const inhalt = document.getElementById('llInhalt').value.trim();
+  if (!titel || !inhalt) { showToast('Bitte alle Pflichtfelder ausfüllen.'); return; }
+  try {
+    if (istNeu) {
+      const maxR = leitlinien.reduce((m, l) => Math.max(m, l.reihenfolge), 0);
+      const rows = await sbPost('innungs_leitlinien', { titel, inhalt, reihenfolge: maxR + 1 });
+      leitlinien = [...leitlinien, rows[0]];
+      llScreen = 'liste'; selLL = null;
+    } else {
+      await sbPatch('innungs_leitlinien', `id=eq.${selLL.id}`, { titel, inhalt });
+      selLL = { ...selLL, titel, inhalt };
+      leitlinien = leitlinien.map(l => l.id === selLL.id ? selLL : l);
+      llScreen = 'detail';
+    }
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════
+//  TRAINER:INNEN – LISTE
+// ═══════════════════════════════════════
+function renderTrListe() {
+  const sorted = [...trainerinnen.filter(t => t.aktiv), ...trainerinnen.filter(t => !t.aktiv)];
+  const items = sorted.map(t => `
+    <div class="trainer-item" onclick="trSelect('${t.id}')" style="opacity:${t.aktiv ? 1 : 0.5}">
+      <div class="avatar" style="width:32px;height:32px;background:${t.aktiv ? 'var(--navy)' : 'var(--muted)'}">${initials(t.name)}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px">${escHtml(t.name)}</div>
+        <div style="font-size:12px;color:var(--muted)">${escHtml(t.kennung)}</div>
+      </div>
+      ${!t.aktiv ? `<span class="badge badge-offen">Deaktiviert</span>` : ''}
+      <div class="list-arrow">›</div>
+    </div>`).join('');
+  return `<div class="section-header">
+    <h2 class="section-title">Trainer:innen</h2>
+    <button class="btn btn-primary" onclick="trNeu()">+ Hinzufügen</button>
+  </div>
+  <div class="list-stack-sm">${items}</div>`;
+}
+
+function trSelect(id) { selTr = trainerinnen.find(t => t.id === id); trScreen = 'detail'; render(); }
+function trNeu() { selTr = null; trScreen = 'neu'; render(); }
+
+// ═══════════════════════════════════════
+//  TRAINER:INNEN – DETAIL
+// ═══════════════════════════════════════
+function renderTrDetail() {
+  if (!selTr) { trScreen = 'liste'; return renderTrListe(); }
+  const t = selTr;
+  const toggleBtn = t.aktiv
+    ? `<button class="btn btn-secondary" onclick="trToggle(false)">Deaktivieren</button>`
+    : `<button class="btn btn-primary" onclick="trToggle(true)">Aktivieren</button>`;
+  return `<div class="row-header">
+    <button class="back-btn" onclick="trZurueck()">‹</button>
+    <h2 style="font-size:20px;font-weight:700">Trainer:in</h2>
+    <button class="btn btn-secondary ml-auto" onclick="trBearbeiten()">Bearbeiten</button>
+  </div>
+  <div class="card mb-4">
+    <div class="card-header" style="background:${t.aktiv ? 'var(--navy)' : 'var(--muted)'}">
+      <div class="card-header-label">Trainer:in</div>
+      <div class="card-header-title">${escHtml(t.name)}</div>
+      ${!t.aktiv ? `<div style="font-size:12px;margin-top:4px;opacity:0.8">Konto deaktiviert</div>` : ''}
+    </div>
+    <div class="card-body">
+      <div class="detail-row"><div class="detail-label">Kennung</div><div class="detail-value">${escHtml(t.kennung)}</div></div>
+      <div class="detail-row"><div class="detail-label">PIN</div><div class="detail-value">••••</div></div>
+      <div class="detail-row"><div class="detail-label">Status</div><div class="detail-value">${t.aktiv ? 'Aktiv' : 'Deaktiviert'}</div></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end">${toggleBtn}</div>`;
+}
+
+function trZurueck() { trScreen = 'liste'; selTr = null; render(); }
+function trBearbeiten() { trScreen = 'bearbeiten'; render(); }
+
+async function trToggle(aktiv) {
+  try {
+    await sbPatch('innungs_trainerinnen', `id=eq.${encodeURIComponent(selTr.id)}`, { aktiv });
+    selTr = { ...selTr, aktiv };
+    trainerinnen = trainerinnen.map(t => t.id === selTr.id ? selTr : t);
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════
+//  TRAINER:INNEN – FORMULAR
+// ═══════════════════════════════════════
+function renderTrFormular() {
+  const istNeu = trScreen === 'neu';
+  const t = istNeu ? {} : selTr;
+  return `<div class="row-header">
+    <button class="back-btn" onclick="${istNeu ? "trZurueck()" : "trScreen='detail';render()"}">‹</button>
+    <h2 style="font-size:20px;font-weight:700">${istNeu ? 'Trainer:in hinzufügen' : 'Bearbeiten'}</h2>
+  </div>
+  <div class="form-card">
+    <div class="mb-4"><label class="lbl">Name <span style="color:var(--error)">*</span></label>
+      <input class="inp" id="trName" value="${escAttr(t.name || '')}" placeholder="Vor- und Nachname"></div>
+    <div class="mb-4"><label class="lbl">Kennung <span style="color:var(--error)">*</span></label>
+      <input class="inp" id="trKennung" value="${escAttr(t.kennung || '')}" placeholder="z. B. mhuber" autocapitalize="none"></div>
+    <div><label class="lbl">PIN ${istNeu ? '<span style="color:var(--error)">*</span>' : '<span style="font-weight:400">(leer = unverändert)</span>'}</label>
+      <input class="inp" type="password" id="trPin" placeholder="4-stellige Zahl" maxlength="4" inputmode="numeric"></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-secondary" onclick="${istNeu ? "trZurueck()" : "trScreen='detail';render()"}">Abbrechen</button>
+    <button class="btn btn-primary" onclick="trSpeichern(${istNeu})">Speichern</button>
+  </div>`;
+}
+
+async function trSpeichern(istNeu) {
+  const name = document.getElementById('trName').value.trim();
+  const kennung = document.getElementById('trKennung').value.trim().toLowerCase();
+  const pin = document.getElementById('trPin').value;
+
+  if (!name || !kennung) { showToast('Name und Kennung sind Pflichtfelder.'); return; }
+  if (istNeu && pin.length !== 4) { showToast('PIN muss 4-stellig sein.'); return; }
+  if (pin && (pin.length !== 4 || !/^\d+$/.test(pin))) { showToast('PIN: nur 4 Ziffern.'); return; }
+
+  // Kennung auf Duplikat prüfen
+  const duplikat = trainerinnen.some(t => t.kennung === kennung && (istNeu || t.id !== selTr.id));
+  if (duplikat) { showToast('Kennung bereits vergeben.'); return; }
+
+  try {
+    if (istNeu) {
+      const body = { name, kennung, pin_hash: md5(pin), aktiv: true };
+      const rows = await sbPost('innungs_trainerinnen', body);
+      trainerinnen = [...trainerinnen, rows[0]];
+      trScreen = 'liste'; selTr = null;
+    } else {
+      const body = { name, kennung };
+      if (pin.length === 4) body.pin_hash = md5(pin);
+      await sbPatch('innungs_trainerinnen', `id=eq.${encodeURIComponent(selTr.id)}`, body);
+      selTr = { ...selTr, name, kennung };
+      trainerinnen = trainerinnen.map(t => t.id === selTr.id ? selTr : t);
+      trScreen = 'detail';
+    }
+    render();
+  } catch(e) { showToast('Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════
+//  SECURITY HELPERS
+// ═══════════════════════════════════════
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s ?? '').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
