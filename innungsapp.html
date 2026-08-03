@@ -437,7 +437,7 @@ async function doLogin() {
     }
 
     const t = rows[0];
-    const rolle = t.kennung === 'org' ? 'organisatorin' : 'trainerin';
+    const rolle = t.id === 'org' ? 'organisatorin' : 'trainerin';
     session = { rolle, id: t.id, name: t.name, kennung: t.kennung };
     localStorage.setItem('innungsapp_session', JSON.stringify(session));
 
