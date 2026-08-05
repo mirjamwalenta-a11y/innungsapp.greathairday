@@ -424,16 +424,11 @@ function escAttr(s){ return String(s??'').replace(/"/g,'&quot;'); }
 
 // ── SEMINARE LISTE ──
 function renderSeminarListe(){
-  // Trainer sieht nur Seminare die zu seinen Bereichen passen (oder ohne Bereich)
   let sems=seminare;
-  if(session.rolle==='trainerin'){
-    const meineBereiche=trBereiche(session.id);
-    sems=seminare.filter(s=>!s.bereich_id||meineBereiche.includes(s.bereich_id));
-  }
   const addBtn=session.rolle==='organisatorin'?`<button class="btn btn-primary" onclick="semNeu()">+ Termin anlegen</button>`:'';
   if(sems.length===0){
     return`<div class="section-header"><h2 class="section-title">Seminartermine</h2>${addBtn}</div>
-           <div class="empty">${session.rolle==='trainerin'?'Keine Termine für deine Kursbereiche.':'Noch keine Termine eingetragen.'}</div>`;
+           <div class="empty">${'Noch keine Termine eingetragen.'}</div>`;
   }
   const items=sems.map(s=>{
     const day=s.datum.split('-')[2];
