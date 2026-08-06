@@ -422,13 +422,69 @@ function showToast(msg){ const t=document.getElementById('toast');t.textContent=
 function escHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s){ return String(s??'').replace(/"/g,'&quot;'); }
 
+// ── AUTO-EINTEILUNG ──
+async function autoEinteilen() {
+  // 1. Nur offene Seminare filtern
+  const offene = seminare.filter(s => !s.bestaetigte_person_id);
+  if (offene.length === 0) {
+    showToast('Keine offenen Seminare vorhanden.');
+    return;
+  }
+  let zugeteilt = 0;
+  for (const sem of offene) {
+    if (!sem.bereich_id) continue; // Ohne Bereich keine Automatik
+    // 2. Aktive Trainer:innen für diesen Bereich ermitteln
+    let kandidaten = trainerinnen.filter(t =>
+      t.aktiv &&
+      t.id !== 'org' &&
+      trBereiche(t.id).includes(sem.bereich_id)
+    );
+    if (kandidaten.length === 0) continue;
+    // 3. Wenn jemand Interesse gemeldet hat, diese bevorzugen
+    const interessierte = kandidaten.filter(t => sem.interessierte.includes(t.id));
+    const pool = interessierte.length > 0 ? interessierte : kandidaten;
+    // 4. Nach bisherigen Einsätzen sortieren (Fairness / wenigste Einsätze zuerst)
+    pool.sort((a, b) => {
+      const anzA = einsaetze[`${a.id}__${sem.bereich_id}`] || 0;
+      const anzB = einsaetze[`${b.id}__${sem.bereich_id}`] || 0;
+      return anzA - anzB;
+    });
+    const gewaehlt = pool[0];
+    // 5. In Supabase speichern & lokalen Status updaten
+    try {
+      await sbPatch('innungs_seminare', `id=eq.${sem.id}`, {
+        bestaetigte_person_id: gewaehlt.id
+      });
+      sem.bestaetigte_person_id = gewaehlt.id;
+      // Einsatz-Zähler aktualisieren
+      const key = `${gewaehlt.id}__${sem.bereich_id}`;
+      einsaetze[key] = (einsaetze[key] || 0) + 1;
+      zugeteilt++;
+    } catch(e) {
+      console.error('Fehler bei Seminar-Zuweisung:', e);
+    }
+  }
+  showToast(`${zugeteilt} Seminar(e) automatisch zugeteilt!`);
+  render();
+}
+
 // ── SEMINARE LISTE ──
 function renderSeminarListe(){
+  // Trainer sieht nur Seminare die zu seinen Bereichen passen (oder ohne Bereich)
   let sems=seminare;
-  const addBtn=session.rolle==='organisatorin'?`<button class="btn btn-primary" onclick="semNeu()">+ Termin anlegen</button>`:'';
+  if(session.rolle==='trainerin'){
+    const meineBereiche=trBereiche(session.id);
+    sems=seminare.filter(s=>!s.bereich_id||meineBereiche.includes(s.bereich_id));
+  }
+  const addBtn = session.rolle === 'organisatorin'
+    ? `<div style="display:flex;gap:8px">
+         <button class="btn btn-secondary" onclick="autoEinteilen()">⚡ Auto-Einteilung</button>
+         <button class="btn btn-primary" onclick="semNeu()">+ Termin anlegen</button>
+       </div>`
+    : '';
   if(sems.length===0){
     return`<div class="section-header"><h2 class="section-title">Seminartermine</h2>${addBtn}</div>
-           <div class="empty">${'Noch keine Termine eingetragen.'}</div>`;
+           <div class="empty">${session.rolle==='trainerin'?'Keine Termine für deine Kursbereiche.':'Noch keine Termine eingetragen.'}</div>`;
   }
   const items=sems.map(s=>{
     const day=s.datum.split('-')[2];
