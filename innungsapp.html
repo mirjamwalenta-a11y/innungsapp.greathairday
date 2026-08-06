@@ -293,9 +293,10 @@ async function doLogin(){
       return;
     }
     const t=rows[0];
-    session={rolle:t.id==='org'?'organisatorin':'trainerin',id:t.id,name:t.name,kennung:t.kennung};
+    session={rolle:t.id==='org'?'organisatorin':'trainerin',id:String(t.id),name:t.name,kennung:t.kennung};
     localStorage.setItem('innungsapp_session',JSON.stringify(session));
-    await loadAllData(); showApp();
+    await loadAllData();
+    if(seminare!==undefined) showApp(); // nur weiter wenn Laden geklappt hat
   }catch(e){
     showToast('Verbindungsfehler: '+e.message);
     document.getElementById('loginBtn').disabled=false;
@@ -312,19 +313,33 @@ function doLogout(){
 }
 
 // ── DATEN LADEN ──
+function withTimeout(promise, ms=10000){
+  return Promise.race([promise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('Zeitüberschreitung – bitte neu laden')),ms))]);
+}
 async function loadAllData(){
   setSyncStatus('syncing');
   try{
-    const [sem,tr,ll,int,ber,tb] = await Promise.all([
+    const [sem,tr,ll,int,ber,tb] = await withTimeout(Promise.all([
       sbGet('innungs_seminare','order=datum.asc,uhrzeit.asc'),
       sbGet('innungs_trainerinnen','order=name.asc'),
       sbGet('innungs_leitlinien','order=reihenfolge.asc'),
       sbGet('innungs_interessierte',''),
       sbGet('innungs_bereiche','order=reihenfolge.asc'),
       sbGet('innungs_trainerin_bereiche','')
-    ]);
-    trainerinnen=tr; leitlinien=ll; bereiche=ber; trainerBereiche=tb;
-    seminare=sem.map(s=>({...s,interessierte:int.filter(i=>i.seminar_id===s.id).map(i=>i.trainerin_id)}));
+    ]));
+    // Alle IDs als String normalisieren damit === Vergleiche funktionieren
+    trainerinnen = tr.map(t=>({...t, id:String(t.id)}));
+    leitlinien = ll;
+    bereiche = ber.map(b=>({...b, id:String(b.id)}));
+    trainerBereiche = tb.map(x=>({trainerin_id:String(x.trainerin_id), bereich_id:String(x.bereich_id)}));
+    seminare = sem.map(s=>({
+      ...s,
+      id: String(s.id),
+      bestaetigte_person_id: s.bestaetigte_person_id!=null ? String(s.bestaetigte_person_id) : null,
+      bereich_id: s.bereich_id!=null ? String(s.bereich_id) : null,
+      interessierte: int.filter(i=>String(i.seminar_id)===String(s.id)).map(i=>String(i.trainerin_id))
+    }));
+    if(session) session.id = String(session.id);
     // Einsatz-Zähler: wie oft wurde jede Trainer:in pro Bereich bestätigt
     einsaetze={};
     seminare.forEach(s=>{
@@ -334,7 +349,13 @@ async function loadAllData(){
       }
     });
     setSyncStatus('synced');
-  }catch(e){ setSyncStatus('error'); showToast('Ladefehler: '+e.message); }
+  }catch(e){
+    setSyncStatus('error');
+    showToast('Ladefehler: '+e.message);
+    // Login-Button wieder freischalten falls noch auf Login-Screen
+    const btn=document.getElementById('loginBtn');
+    if(btn){ btn.disabled=false; btn.textContent='Anmelden'; }
+  }
 }
 
 function setSyncStatus(s){
@@ -470,12 +491,8 @@ async function autoEinteilen() {
 
 // ── SEMINARE LISTE ──
 function renderSeminarListe(){
-  // Trainer sieht nur Seminare die zu seinen Bereichen passen (oder ohne Bereich)
+  // Alle Seminare anzeigen (Trainer sehen alle Termine)
   let sems=seminare;
-  if(session.rolle==='trainerin'){
-    const meineBereiche=trBereiche(session.id);
-    sems=seminare.filter(s=>!s.bereich_id||meineBereiche.includes(s.bereich_id));
-  }
   const addBtn = session.rolle === 'organisatorin'
     ? `<div style="display:flex;gap:8px">
          <button class="btn btn-secondary" onclick="autoEinteilen()">⚡ Auto-Einteilung</button>
@@ -484,7 +501,7 @@ function renderSeminarListe(){
     : '';
   if(sems.length===0){
     return`<div class="section-header"><h2 class="section-title">Seminartermine</h2>${addBtn}</div>
-           <div class="empty">${session.rolle==='trainerin'?'Keine Termine für deine Kursbereiche.':'Noch keine Termine eingetragen.'}</div>`;
+           <div class="empty">Noch keine Termine eingetragen.</div>`;
   }
   const items=sems.map(s=>{
     const day=s.datum.split('-')[2];
