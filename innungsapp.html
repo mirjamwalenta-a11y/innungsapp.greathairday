@@ -193,6 +193,23 @@
 <script>
 const SUPA_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+
+// ── WÖRNI ANBINDUNG ──────────────────────────────────────────────────────────
+const WOERNI_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
+const WOERNI_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+
+async function woerniAufgabe(titel, schritt, signal_key) {
+  try {
+    const gh = { 'apikey': WOERNI_KEY, 'Authorization': `Bearer ${WOERNI_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+    const check = await fetch(`${WOERNI_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${signal_key}&status=neq.erledigt&select=id`, { headers: gh });
+    const existing = await check.json();
+    if (existing && existing.length > 0) return;
+    await fetch(`${WOERNI_URL}/rest/v1/ghd_aufgaben`, {
+      method: 'POST', headers: gh,
+      body: JSON.stringify({ titel, naechster_schritt: schritt, prioritaet: 'diese-woche', typ: 'entscheidung', status: 'neu', app_kontext: 'innung', erstellt_von: 'innung-auto', signal_key })
+    });
+  } catch(e) { console.warn('Wörni:', e); }
+}
 const MONATE = ['JAN','FEB','MÄR','APR','MAI','JUN','JUL','AUG','SEP','OKT','NOV','DEZ'];
 const KATEGORIEN = [
   {id:'newcomer',   label:'Newcomer',        css:'badge-kat-newcomer'},
@@ -676,6 +693,16 @@ async function bestaetigen(tid){
     einsaetze[key]=(einsaetze[key]||0)+1;
     render();
   }catch(e){ showToast('Fehler: '+e.message); }
+}
+
+async function seminarGespeichert(seminarId, titel, ohneTrainer) {
+  if (ohneTrainer) {
+    await woerniAufgabe(
+      `Seminar "${titel}" — Trainer:in fehlt`,
+      'Interessierte prüfen und Trainer:in bestätigen',
+      `innung_seminar_${seminarId}`
+    );
+  }
 }
 
 // ── SEMINARE FORMULAR ──
