@@ -198,6 +198,17 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const WOERNI_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
 const WOERNI_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
 
+// ── GHD-EREIGNIS ─────────────────────────────────────────────────────────────
+async function innungsEreignis(typ, titel, prioritaet) {
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/ghd_ereignisse`, {
+      method: 'POST',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ app: 'Innung', typ, titel, prioritaet, gelesen: false })
+    });
+  } catch(e) { console.warn('innungsEreignis:', e); }
+}
+
 async function woerniAufgabe(titel, schritt, signal_key) {
   try {
     const gh = { 'apikey': WOERNI_KEY, 'Authorization': `Bearer ${WOERNI_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
@@ -673,6 +684,8 @@ async function toggleInteresse(aktion){
       await sbPost('innungs_interessierte',{seminar_id:sid,trainerin_id:tid});
       selSeminar.interessierte.push(tid);
       seminare=seminare.map(s=>s.id===sid?{...s,interessierte:[...s.interessierte,tid]}:s);
+      // ── GHD-EREIGNIS: Interesse gemeldet ──────────────────────
+      innungsEreignis('interesse_gemeldet', `Interesse: ${tName(tid)} für „${selSeminar.titel}"`, 'diese-woche');
     }else{
       await sbDelete('innungs_interessierte',`seminar_id=eq.${sid}&trainerin_id=eq.${encodeURIComponent(tid)}`);
       selSeminar.interessierte=selSeminar.interessierte.filter(x=>x!==tid);
@@ -691,6 +704,8 @@ async function bestaetigen(tid){
     // Einsatz-Zähler aktualisieren
     const key=`${tid}__${selSeminar.bereich_id||'_'}`;
     einsaetze[key]=(einsaetze[key]||0)+1;
+    // ── GHD-EREIGNIS: Trainer bestätigt ─────────────────────────
+    innungsEreignis('trainer_bestaetigt', `Trainer:in bestätigt: ${tName(tid)} → ${selSeminar.titel}`, 'wann-moeglich');
     render();
   }catch(e){ showToast('Fehler: '+e.message); }
 }
@@ -762,6 +777,8 @@ async function semSpeichern(istNeu){
       const neu={...rows[0],interessierte:[]};
       seminare=[...seminare,neu].sort((a,b)=>a.datum.localeCompare(b.datum)||a.uhrzeit.localeCompare(b.uhrzeit));
       semScreen='liste'; selSeminar=null;
+      // ── GHD-EREIGNIS: neues Seminar ohne Trainer ────────────────
+      innungsEreignis('seminar_neu', `Neues Seminar: ${titel} (${datum})`, 'diese-woche');
     }else{
       await sbPatch('innungs_seminare',`id=eq.${selSeminar.id}`,body);
       selSeminar={...selSeminar,...body};
