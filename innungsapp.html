@@ -153,20 +153,35 @@
       <div><div class="brand-name">Mirjam Walenta</div>
       <div class="brand-sub">A great hair day · Innung Seminare</div></div>
     </div>
-    <div style="font-size:20px;font-weight:700;margin-bottom:4px">Anmelden</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Kennung und PIN eingeben.</div>
-    <div class="mb-4">
-      <label class="lbl">Kennung <span style="color:var(--error)">*</span></label>
-      <input id="loginKennung" class="inp" placeholder="z. B. mhuber" autocapitalize="none" autocorrect="off">
+    <div id="loginStep1">
+      <div style="font-size:20px;font-weight:700;margin-bottom:4px">Anmelden</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Kennung und PIN eingeben.</div>
+      <div class="mb-4">
+        <label class="lbl">Kennung <span style="color:var(--error)">*</span></label>
+        <input id="loginKennung" class="inp" placeholder="z. B. mhuber" autocapitalize="none" autocorrect="off">
+      </div>
+      <div class="mb-4">
+        <label class="lbl">PIN <span style="color:var(--error)">*</span></label>
+        <input id="loginPin" class="inp" type="password" placeholder="••••" maxlength="4" inputmode="numeric">
+      </div>
+      <div id="loginFehler" style="display:none;font-size:13px;color:var(--error);margin-bottom:14px;padding:9px 12px;background:#FEF2F2;border-radius:6px">
+        Kennung oder PIN ungültig.
+      </div>
+      <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%">Anmelden</button>
     </div>
-    <div class="mb-4">
-      <label class="lbl">PIN <span style="color:var(--error)">*</span></label>
-      <input id="loginPin" class="inp" type="password" placeholder="••••" maxlength="4" inputmode="numeric">
+    <div id="loginStep2" style="display:none">
+      <div style="font-size:20px;font-weight:700;margin-bottom:4px">Als Organisatorin anmelden</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Für Schreibrechte (Trainer:innen, Seminare, Leitlinien, Bereiche bearbeiten) bitte zusätzlich dein Passwort eingeben.</div>
+      <div class="mb-4">
+        <label class="lbl">Passwort <span style="color:var(--error)">*</span></label>
+        <input id="loginOrgPw" class="inp" type="password" placeholder="">
+      </div>
+      <div id="loginOrgFehler" style="display:none;font-size:13px;color:var(--error);margin-bottom:14px;padding:9px 12px;background:#FEF2F2;border-radius:6px">
+        Passwort falsch.
+      </div>
+      <button class="btn btn-primary" id="loginOrgBtn" onclick="doOrgAuth()" style="width:100%;margin-bottom:10px">Anmelden</button>
+      <button class="btn btn-secondary" onclick="loginOrgUeberspringen()" style="width:100%">Weiter ohne Schreibrechte (nur ansehen)</button>
     </div>
-    <div id="loginFehler" style="display:none;font-size:13px;color:var(--error);margin-bottom:14px;padding:9px 12px;background:#FEF2F2;border-radius:6px">
-      Kennung oder PIN ungültig.
-    </div>
-    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%">Anmelden</button>
   </div>
 </div>
 
@@ -190,9 +205,14 @@
 
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const SUPA_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+// Echtes Supabase-Auth-Konto der Organisatorin (für Schreibrechte auf innungs_*-Tabellen, RLS verlangt auth.role()='authenticated').
+// Kennung+PIN bleibt der Login für alle; nur wenn die Kennung auf die Organisatorin passt, wird zusätzlich mit diesem Konto angemeldet.
+const ORG_EMAIL = 'mirjam.innung@greathairday.at';
+const sbAuth = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // ── WÖRNI ANBINDUNG ──────────────────────────────────────────────────────────
 const WOERNI_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
@@ -239,8 +259,12 @@ function katBadge(kid){
 
 // ── SUPABASE ──
 async function sbFetch(path, opts={}) {
+  // Ist die Organisatorin gerade echt eingeloggt (sbAuth-Session), wird deren Token verwendet
+  // (RLS-Schreibregeln verlangen auth.role()='authenticated') — sonst wie bisher der Anon-Key.
+  const { data: { session: authSession } } = await sbAuth.auth.getSession();
+  const token = authSession?.access_token || SUPA_KEY;
   const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
-    headers:{ 'apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`,'Content-Type':'application/json','Prefer':opts.prefer||'return=representation',...opts.headers },
+    headers:{ 'apikey':SUPA_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json','Prefer':opts.prefer||'return=representation',...opts.headers },
     ...opts
   });
   if(!res.ok){ const e=await res.text(); throw new Error(e); }
@@ -301,8 +325,11 @@ let berScreen='liste',selBer=null;
 function zeigeLogin(){
   document.getElementById('loadingScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginStep1').style.display='block';
+  document.getElementById('loginStep2').style.display='none';
   document.getElementById('loginPin').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
   document.getElementById('loginKennung').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loginPin').focus(); });
+  document.getElementById('loginOrgPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doOrgAuth(); });
 }
 window.addEventListener('DOMContentLoaded',async()=>{
   const saved=localStorage.getItem('innungsapp_session');
@@ -321,6 +348,8 @@ window.addEventListener('DOMContentLoaded',async()=>{
 });
 
 // ── LOGIN ──
+let pendingSession=null;
+
 async function doLogin(){
   const kennung=document.getElementById('loginKennung').value.trim().toLowerCase();
   const pin=document.getElementById('loginPin').value;
@@ -336,7 +365,20 @@ async function doLogin(){
       return;
     }
     const t=rows[0];
-    session={rolle:t.id==='org'?'organisatorin':'trainerin',id:String(t.id),name:t.name,kennung:t.kennung};
+    const neueSession={rolle:t.id==='org'?'organisatorin':'trainerin',id:String(t.id),name:t.name,kennung:t.kennung};
+    document.getElementById('loginBtn').disabled=false;
+    document.getElementById('loginBtn').textContent='Anmelden';
+    if(neueSession.rolle==='organisatorin'){
+      // Zusätzlicher Schritt: echtes Passwort für Schreibrechte (RLS verlangt auth.role()='authenticated').
+      pendingSession=neueSession;
+      document.getElementById('loginStep1').style.display='none';
+      document.getElementById('loginStep2').style.display='block';
+      document.getElementById('loginOrgFehler').style.display='none';
+      document.getElementById('loginOrgPw').value='';
+      document.getElementById('loginOrgPw').focus();
+      return;
+    }
+    session=neueSession;
     localStorage.setItem('innungsapp_session',JSON.stringify(session));
     await loadAllData();
     showApp();
@@ -347,10 +389,44 @@ async function doLogin(){
   }
 }
 
-function doLogout(){
-  session=null; localStorage.removeItem('innungsapp_session');
+async function doOrgAuth(){
+  const pw=document.getElementById('loginOrgPw').value;
+  document.getElementById('loginOrgFehler').style.display='none';
+  document.getElementById('loginOrgBtn').disabled=true;
+  document.getElementById('loginOrgBtn').textContent='Wird geprüft…';
+  try{
+    const {error}=await sbAuth.auth.signInWithPassword({email:ORG_EMAIL,password:pw});
+    document.getElementById('loginOrgBtn').disabled=false;
+    document.getElementById('loginOrgBtn').textContent='Anmelden';
+    if(error){
+      document.getElementById('loginOrgFehler').style.display='block';
+      return;
+    }
+    session=pendingSession; pendingSession=null;
+    localStorage.setItem('innungsapp_session',JSON.stringify(session));
+    await loadAllData();
+    showApp();
+  }catch(e){
+    document.getElementById('loginOrgBtn').disabled=false;
+    document.getElementById('loginOrgBtn').textContent='Anmelden';
+    showToast('Verbindungsfehler: '+e.message);
+  }
+}
+
+async function loginOrgUeberspringen(){
+  session=pendingSession; pendingSession=null;
+  localStorage.setItem('innungsapp_session',JSON.stringify(session));
+  await loadAllData();
+  showApp();
+}
+
+async function doLogout(){
+  session=null; pendingSession=null; localStorage.removeItem('innungsapp_session');
+  try{ await sbAuth.auth.signOut(); }catch(e){}
   document.getElementById('appScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginStep1').style.display='block';
+  document.getElementById('loginStep2').style.display='none';
   document.getElementById('loginKennung').value='';
   document.getElementById('loginPin').value='';
 }
