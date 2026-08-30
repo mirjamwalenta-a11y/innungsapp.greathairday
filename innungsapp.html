@@ -264,8 +264,8 @@ async function sbFetch(path, opts={}) {
   const { data: { session: authSession } } = await sbAuth.auth.getSession();
   const token = authSession?.access_token || SUPA_KEY;
   const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
-    headers:{ 'apikey':SUPA_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json','Prefer':opts.prefer||'return=representation',...opts.headers },
-    ...opts
+    ...opts,
+    headers:{ 'apikey':SUPA_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json','Prefer':opts.prefer||'return=representation',...opts.headers }
   });
   if(!res.ok){ const e=await res.text(); throw new Error(e); }
   const t=await res.text(); return t?JSON.parse(t):[];
