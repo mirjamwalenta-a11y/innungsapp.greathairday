@@ -1092,11 +1092,13 @@ async function berSpeichern(istNeu){
 </script>
 <script>
 // ── Wörni / Claude – sicherer Proxy ──
+// Hinweis: aktuell in dieser App an keiner Stelle aufgerufen (Stand 30.08.2026) — trotzdem auf
+// das echte rapid-function-Muster umgestellt, für den Fall, dass sie künftig verwendet wird.
 async function claudeAnfrage(system, userText, maxTokens) {
   maxTokens = maxTokens || 400;
-  const res = await fetch('https://wrxlaltgtgkdomklgrlj.supabase.co/functions/v1/rapid-service', {
+  const res = await fetch('https://wrxlaltgtgkdomklgrlj.supabase.co/functions/v1/rapid-function', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPA_KEY },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
