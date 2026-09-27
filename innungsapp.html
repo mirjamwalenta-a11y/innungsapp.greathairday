@@ -232,7 +232,19 @@ async function ghdRpc(fn, args) {
 // ── GHD-EREIGNIS ───────────────────────────────────────────────────────────
 async function innungsEreignis(typ, titel, prioritaet) {
   try {
-    await ghdRpc('ghd_ereignis_melden', { p_app: 'Innung', p_typ: typ, p_titel: titel, p_prioritaet: prioritaet });
+    const { data: { session: authSession } } = await sbAuth.auth.getSession();
+    if (authSession?.access_token) {
+      await ghdRpc('ghd_ereignis_melden', { p_app: 'Innung', p_typ: typ, p_titel: titel, p_prioritaet: prioritaet });
+    } else if (typ === 'interesse_gemeldet') {
+      // Trainer:innen haben nur Kennung + PIN, keinen Supabase-Login: dafür gibt es
+      // eine eng begrenzte öffentliche Meldefunktion (nur diese Meldungsart, nie lesen).
+      const r = await fetch(`${SUPA_URL}/rest/v1/rpc/ghd_ereignis_melden_oeffentlich`, {
+        method: 'POST',
+        headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_app: 'Innung', p_typ: typ, p_titel: titel, p_prioritaet: prioritaet })
+      });
+      if (!r.ok) throw new Error(await r.text());
+    }
   } catch(e) { console.warn('innungsEreignis:', e); }
 }
 
