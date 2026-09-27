@@ -214,35 +214,35 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const ORG_EMAIL = 'mirjam.innung@greathairday.at';
 const sbAuth = supabase.createClient(SUPA_URL, SUPA_KEY);
 
-// ── WÖRNI ANBINDUNG ──────────────────────────────────────────────────────────
-const WOERNI_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
-const WOERNI_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
+// ── WÖRNI ANBINDUNG ─────────────────────────────────────────────────────────
+// Meldungen über Serverfunktionen (Team-Repo, Migration 20260927100000), mit
+// dem Login-Token der Organisatorin statt dem Anon-Key. Ohne Supabase-Login
+// (Kennung+PIN allein) wird nichts gemeldet: die Funktionen sind für anon gesperrt.
+async function ghdRpc(fn, args) {
+  const { data: { session: authSession } } = await sbAuth.auth.getSession();
+  if (!authSession?.access_token) throw new Error('Nicht angemeldet');
+  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${authSession.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args)
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
 
-// ── GHD-EREIGNIS ─────────────────────────────────────────────────────────────
+// ── GHD-EREIGNIS ───────────────────────────────────────────────────────────
 async function innungsEreignis(typ, titel, prioritaet) {
   try {
-    const _h = { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' };
-    const _r = await fetch(`${SUPA_URL}/rest/v1/ghd_ereignisse?app=eq.Innung&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false&select=id`, { headers: _h });
-    const _ex = await _r.json();
-    if (Array.isArray(_ex) && _ex.length > 0) {
-      await fetch(`${SUPA_URL}/rest/v1/ghd_ereignisse?app=eq.Innung&typ=eq.${encodeURIComponent(typ)}&gelesen=eq.false`,
-        { method: 'PATCH', headers: { ..._h, 'Prefer': 'return=minimal' }, body: JSON.stringify({ titel, prioritaet, erstellt_am: new Date().toISOString() }) });
-    } else {
-      await fetch(`${SUPA_URL}/rest/v1/ghd_ereignisse`,
-        { method: 'POST', headers: { ..._h, 'Prefer': 'return=minimal' }, body: JSON.stringify({ app: 'Innung', typ, titel, prioritaet, gelesen: false }) });
-    }
+    await ghdRpc('ghd_ereignis_melden', { p_app: 'Innung', p_typ: typ, p_titel: titel, p_prioritaet: prioritaet });
   } catch(e) { console.warn('innungsEreignis:', e); }
 }
 
 async function woerniAufgabe(titel, schritt, signal_key) {
   try {
-    const gh = { 'apikey': WOERNI_KEY, 'Authorization': `Bearer ${WOERNI_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-    const check = await fetch(`${WOERNI_URL}/rest/v1/ghd_aufgaben?signal_key=eq.${signal_key}&status=neq.erledigt&select=id`, { headers: gh });
-    const existing = await check.json();
-    if (existing && existing.length > 0) return;
-    await fetch(`${WOERNI_URL}/rest/v1/ghd_aufgaben`, {
-      method: 'POST', headers: gh,
-      body: JSON.stringify({ titel, naechster_schritt: schritt, prioritaet: 'diese-woche', typ: 'entscheidung', status: 'neu', app_kontext: 'innung', erstellt_von: 'innung-auto', signal_key })
+    // p_nur_neu: eine schon offene Aufgabe bleibt unverändert (wie bisher)
+    await ghdRpc('ghd_aufgabe_melden', {
+      p_signal_key: signal_key,
+      p_daten: { titel, naechster_schritt: schritt, prioritaet: 'diese-woche', typ: 'entscheidung', app_kontext: 'innung', erstellt_von: 'innung-auto' },
+      p_nur_neu: true
     });
   } catch(e) { console.warn('Wörni:', e); }
 }
