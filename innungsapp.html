@@ -286,6 +286,22 @@ async function sbFetch(path, opts={}) {
 const sbGet=(t,q='')=>sbFetch(`${t}?${q}`);
 const sbPost=(t,b)=>sbFetch(t,{method:'POST',body:JSON.stringify(b)});
 const sbPatch=(t,q,b)=>sbFetch(`${t}?${q}`,{method:'PATCH',body:JSON.stringify(b)});
+// pin_hash ist nicht mehr lesbar (Spaltenrechte) – Trainerinnen immer mit dieser Spaltenliste lesen
+const TR_SPALTEN='id,name,kennung,aktiv';
+// Anmeldung mit Kennung + PIN: Prüfung in der Datenbank (innung_login), nie im Browser
+async function innungLogin(kennung, pin){
+  const res=await fetch(`${SUPA_URL}/rest/v1/rpc/innung_login`,{
+    method:'POST',
+    headers:{'apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`,'Content-Type':'application/json'},
+    body:JSON.stringify({p_kennung:kennung,p_pin:pin})
+  });
+  const t=await res.text();
+  if(!res.ok){
+    let msg=t; try{ msg=JSON.parse(t).message||t; }catch(e){}
+    throw new Error(msg);
+  }
+  return t?JSON.parse(t):[];
+}
 const sbDelete=(t,q)=>sbFetch(`${t}?${q}`,{method:'DELETE',prefer:'return=minimal',headers:{'Prefer':'return=minimal'}});
 
 // ── MD5 ──
@@ -370,8 +386,22 @@ async function doLogin(){
   document.getElementById('loginBtn').disabled=true;
   document.getElementById('loginBtn').textContent='Wird geprüft…';
   try{
-    const rows=await sbGet('innungs_trainerinnen',`kennung=eq.${encodeURIComponent(kennung)}&pin_hash=eq.${encodeURIComponent(md5(pin))}&aktiv=eq.true`);
+    let rows;
+    try{
+      rows=await innungLogin(kennung,pin);
+    }catch(e){
+      if(/Fehlversuche/.test(e.message)){
+        const f=document.getElementById('loginFehler');
+        f.textContent='Zu viele Fehlversuche – bitte in 15 Minuten erneut versuchen.';
+        f.style.display='block';
+        document.getElementById('loginBtn').disabled=false;
+        document.getElementById('loginBtn').textContent='Anmelden';
+        return;
+      }
+      throw e;
+    }
     if(rows.length===0){
+      document.getElementById('loginFehler').textContent='Kennung oder PIN ungültig.';
       document.getElementById('loginFehler').style.display='block';
       document.getElementById('loginBtn').disabled=false;
       document.getElementById('loginBtn').textContent='Anmelden';
@@ -453,7 +483,7 @@ async function loadAllData(){
   try{
     const [sem,tr,ll,int,ber,tb] = await withTimeout(Promise.all([
       sbGet('innungs_seminare','order=datum.asc,uhrzeit.asc'),
-      sbGet('innungs_trainerinnen','order=name.asc'),
+      sbGet('innungs_trainerinnen',`select=${TR_SPALTEN}&order=name.asc`),
       sbGet('innungs_leitlinien','order=reihenfolge.asc'),
       sbGet('innungs_interessierte',''),
       sbGet('innungs_bereiche','order=reihenfolge.asc'),
@@ -1026,7 +1056,7 @@ function trZurueck(){ trScreen='liste'; selTr=null; render(); }
 function trBearbeiten(){ trScreen='bearbeiten'; render(); }
 async function trToggle(aktiv){
   try{
-    await sbPatch('innungs_trainerinnen',`id=eq.${encodeURIComponent(selTr.id)}`,{aktiv});
+    await sbPatch('innungs_trainerinnen',`id=eq.${encodeURIComponent(selTr.id)}&select=${TR_SPALTEN}`,{aktiv});
     selTr={...selTr,aktiv};
     trainerinnen=trainerinnen.map(t=>t.id===selTr.id?selTr:t);
     render();
@@ -1074,13 +1104,13 @@ async function trSpeichern(istNeu){
     let tid;
     if(istNeu){
       const body={name,kennung,pin_hash:md5(pin),aktiv:true};
-      const rows=await sbPost('innungs_trainerinnen',body);
+      const rows=await sbPost(`innungs_trainerinnen?select=${TR_SPALTEN}`,body);
       trainerinnen=[...trainerinnen,rows[0]];
       tid=rows[0].id; trScreen='liste'; selTr=null;
     }else{
       const body={name,kennung};
       if(pin.length===4) body.pin_hash=md5(pin);
-      await sbPatch('innungs_trainerinnen',`id=eq.${encodeURIComponent(selTr.id)}`,body);
+      await sbPatch('innungs_trainerinnen',`id=eq.${encodeURIComponent(selTr.id)}&select=${TR_SPALTEN}`,body);
       selTr={...selTr,name,kennung};
       trainerinnen=trainerinnen.map(t=>t.id===selTr.id?selTr:t);
       tid=selTr.id; trScreen='detail';
