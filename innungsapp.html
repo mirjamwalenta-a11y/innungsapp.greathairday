@@ -207,6 +207,9 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://mirjamwalenta-a11y.github.io/abwesenheiten-ghd/ghd-offline.js" data-schluessel="innungsapp_session"></script>  <!-- offline nutzbar: Service Worker, gemerkte Daten, Nachsync -->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="https://mirjamwalenta-a11y.github.io/abwesenheiten-ghd/icon-512.png">
 <script>
 const SUPA_URL = 'https://wrxlaltgtgkdomklgrlj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyeGxhbHRndGdrZG9ta2xncmxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDYwMzYsImV4cCI6MjA5OTgyMjAzNn0.Bw8ch-EJb_cLYTwxHdpjUJWgoCjje3Jc32pB0yiBS8g';
@@ -370,7 +373,8 @@ window.addEventListener('DOMContentLoaded',async()=>{
       showApp();
       return;
     }catch(e){
-      localStorage.removeItem('innungsapp_session');
+      // Ohne Netz (und ohne gemerkte Daten) nicht abmelden – sonst wäre die Anmeldung weg
+      if(navigator.onLine) localStorage.removeItem('innungsapp_session');
     }
   }
   zeigeLogin();
